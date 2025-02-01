@@ -11,37 +11,39 @@ function App() {
   const [inputMode, setInputMode] = useState("audio");
 
   return (
-    <div className="container w-100 mx-auto my-10 p-4">
-        <h1 className="text-3xl font-bold text-center mb-8">Podcast AI Generator</h1>
-        
-      {/* Toggle Buttons */}
-      <div className="flex justify-center gap-4 mb-8">
-        <button
-          onClick={() => setInputMode("audio")}
-        //   className={px-4 py-2 rounded ${inputMode === "audio" ? "bg-blue-500 text-white" : "bg-gray-200"}}
-        >
-          Upload Audio
-        </button>
-        <button
-          onClick={() => setInputMode("transcript")}
-        //   className={px-4 py-2 rounded ${inputMode === "transcript" ? "bg-blue-500 text-white" : "bg-gray-200"}}
-        >
-          Enter Transcript
-        </button>
-      </div>
+    <div className="container mx-auto">
+        <div className="w-96 mx-auto my-10 p-0">
+            <h1 className="text-3xl font-bold text-center mb-8">Podcast AI Generator</h1>
+            
+        {/* Toggle Buttons */}
+        <div className="flex justify-center gap-4 mb-8">
+            <button
+            onClick={() => setInputMode("audio")}
+            className={`px-4 py-2 rounded ${inputMode === "audio" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            >
+            Upload Audio
+            </button>
+            <button
+            onClick={() => setInputMode("transcript")}
+            className={`px-4 py-2 rounded ${inputMode === "transcript" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            >
+            Enter Transcript
+            </button>
+        </div>
 
-      {/* Input Mode */}
-      {inputMode === "audio" ? (
-        <AudioUpload setScript={setScript} setLoading={setLoading} />
-      ) : (
-        <TranscriptInput setScript={setScript} setLoading={setLoading} />
-      )}
+        {/* Input Mode */}
+        {inputMode === "audio" ? (
+            <AudioUpload setScript={setScript} setLoading={setLoading} />
+        ) : (
+            <TranscriptInput setScript={setScript} setLoading={setLoading} />
+        )}
 
-      {/* Loading Spinner */}
-      {loading && <LoadingSpinner />}
+        {/* Loading Spinner */}
+        {loading && <LoadingSpinner />}
 
-      {/* Podcast Player */}
-      {script && <PodcastPlayer script={script} />}
+        {/* Podcast Player */}
+        {script && <PodcastPlayer script={script} />}
+        </div>
     </div>
   );
 }
