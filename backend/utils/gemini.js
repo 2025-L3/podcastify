@@ -8,10 +8,20 @@ const extractTextFromAudio = async (filePath) => {
   return "Extracted text from audio";
 };
 
-const generatePodcastScript = async (text) => {
+// const generatePodcastScript = async (text) => {
   
+//   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+//   const result = await model.generateContent(text);
+//   const response = await result.response;
+//   return response.text();
+// };
+const generatePodcastScript = async (text) => {
   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-  const result = await model.generateContent(text);
+
+  // Add a prompt to generate a two-person dialogue
+  const prompt = `Convert the following text into a one or two-person according to the case dialogue format. Use "Speaker 1:" and "Speaker 2:" to identify each speaker.\n\n${text}`;
+
+  const result = await model.generateContent(prompt);
   const response = await result.response;
   return response.text();
 };
