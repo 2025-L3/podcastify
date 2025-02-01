@@ -1,6 +1,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const API_KEY = "GEMINI_API_KEY"; // Replace with your Gemini API key
+const API_KEY = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 const extractTextFromAudio = async (filePath) => {
@@ -9,6 +9,7 @@ const extractTextFromAudio = async (filePath) => {
 };
 
 const generatePodcastScript = async (text) => {
+  
   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
   const result = await model.generateContent(text);
   const response = await result.response;

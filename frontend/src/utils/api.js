@@ -26,6 +26,7 @@ export const processTranscript = async (transcript) => {
     const response = await axios.post(`${API_BASE_URL}/transcript/process`, {
       transcript,
     });
+    console.log(response.data);
     return response.data;
   } catch (error) {
     console.error("Error processing transcript:", error);
