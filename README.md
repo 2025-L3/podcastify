@@ -1,4 +1,4 @@
-# podcastlify
+# podcastify
 
 L3's Software development project #1
 
