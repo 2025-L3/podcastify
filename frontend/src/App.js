@@ -11,11 +11,9 @@ function App() {
   const [inputMode, setInputMode] = useState("audio");
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container w-100 mx-auto my-10 p-4">
         <h1 className="text-3xl font-bold text-center mb-8">Podcast AI Generator</h1>
-        <div className="bg-blue-500 text-white p-4">
-            <h1 className="text-2xl font-bold">Tailwind CSS is working!</h1>
-        </div>
+        
       {/* Toggle Buttons */}
       <div className="flex justify-center gap-4 mb-8">
         <button
