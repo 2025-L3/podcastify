@@ -49,7 +49,7 @@ function App() {
 
   return (
     <div className="App">
-      <h1 className="text-xl font-medium text-black dark:text-white">Podcast AI Generator</h1>
+      <h1 className="text-sm text-purple-600 font-medium dark:text-white">Podcast AI Generator</h1>
 
       {/* Toggle Buttons */}
       <div className="toggle-buttons">
