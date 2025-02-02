@@ -1,5 +1,33 @@
 # podcastify
 
-L3's Software development project #1
+A React-based webapp that generates podcasts from uploaded audio files or pasted transcripts. It uses the Gemini API for text transformation and the Web Speech API for text-to-audio conversion.
 
-You will use generative AI to help you learn concepts and implement a web-based application that converts text transcripts or audio uploads into enhanced, playable podcasts from one or two people using ReactJS, ExpressJS, Google's Gemini API, and Web Speech API. (if you find another AI API more suitable, you can use it instead of Gemini). This prototype will showcase your ability to work with cutting-edge AI and audio processing technologies.
+## Features
+
+- **Audio Upload**: Upload an audio file to generate a podcast.
+- **Transcript Input**: Paste or type a transcript to generate a podcast.
+- **Podcast Player**: Play, stop, and adjust playback speed (0.5x - 2.0x).
+- **Speaker Identification**: Supports one or two-person dialogue structures.
+
+## Technologies
+
+- **Frontend**: ReactJS, Tailwind CSS
+- **Backend**: ExpressJS
+- **AI Integration**: Google Gemini API
+- **Audio Processing**: Web Speech API
+
+## Setup
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- npm (v9 or higher)
+- Gemini API Key (from Google Cloud)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/podcast-ai-generator.git
+   cd podcast-ai-generator
+   ```

@@ -31,11 +31,19 @@ const AudioUpload = ({ setScript, setLoading }) => {
   };
 
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-semibold mb-4">Upload Audio File</h2>
-      <input type="file" accept="audio/*" onChange={handleFileUpload} className="mb-4" />
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-semibold text-primary mb-4">Upload Audio File</h2>
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={handleFileUpload}
+        className="w-full p-2 border border-gray-300 rounded-lg mb-4"
+      />
       {error && <p className="text-red-500 mb-4">{error}</p>}
-      <button onClick={handleGenerate} className="px-4 py-2 bg-blue-500 text-white rounded">
+      <button
+        onClick={handleGenerate}
+        className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition-all"
+      >
         Generate Podcast
       </button>
     </div>

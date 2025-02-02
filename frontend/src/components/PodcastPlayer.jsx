@@ -17,12 +17,14 @@ const PodcastPlayer = ({ script }) => {
   };
 
   return (
-    <div className="mt-8">
-      <h2 className="text-xl font-semibold mb-4">Podcast Player</h2>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-semibold text-primary mb-4">Podcast Player</h2>
       <div className="flex gap-4 mb-4">
         <button
           onClick={isPlaying ? handleStop : handlePlay}
-          className={`px-4 py-2 ${isPlaying ? "bg-red-500" : "bg-green-500"} text-white rounded`}
+          className={`px-6 py-3 rounded-lg transition-all ${
+            isPlaying ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"
+          } text-white`}
         >
           {isPlaying ? "Stop" : "Play"}
         </button>
@@ -41,9 +43,9 @@ const PodcastPlayer = ({ script }) => {
           <span className="text-gray-700">{playbackRate}x</span>
         </div>
       </div>
-      <div className="mt-4 p-4 bg-gray-100 rounded">
-        <h3 className="font-semibold">Script:</h3>
-        <p>{script}</p>
+      <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+        <h3 className="font-semibold text-primary">Script:</h3>
+        <pre className="whitespace-pre-wrap text-text">{script}</pre>
       </div>
     </div>
   );

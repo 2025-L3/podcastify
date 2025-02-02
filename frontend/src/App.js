@@ -3,7 +3,6 @@ import AudioUpload from "./components/AudioUpload";
 import TranscriptInput from "./components/TranscriptInput";
 import PodcastPlayer from "./components/PodcastPlayer";
 import LoadingSpinner from "./components/LoadingSpinner";
-import "./App.css";
 
 function App() {
   const [script, setScript] = useState("");
@@ -11,31 +10,39 @@ function App() {
   const [inputMode, setInputMode] = useState("audio");
 
   return (
-    <div className="container mx-auto">
-        <div className="w-96 mx-auto my-10 p-0">
-            <h1 className="text-3xl font-bold text-center mb-8">Podcast AI Generator</h1>
-            
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-4xl font-bold text-primary text-center mb-8">Podcast AI Generator</h1>
+
         {/* Toggle Buttons */}
         <div className="flex justify-center gap-4 mb-8">
-            <button
+          <button
             onClick={() => setInputMode("audio")}
-            className={`px-4 py-2 rounded ${inputMode === "audio" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
-            >
+            className={`px-6 py-3 rounded-lg transition-all ${
+              inputMode === "audio"
+                ? "bg-primary text-white hover:bg-blue-700"
+                : "bg-white text-primary border border-primary hover:bg-gray-50"
+            }`}
+          >
             Upload Audio
-            </button>
-            <button
+          </button>
+          <button
             onClick={() => setInputMode("transcript")}
-            className={`px-4 py-2 rounded ${inputMode === "transcript" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
-            >
+            className={`px-6 py-3 rounded-lg transition-all ${
+              inputMode === "transcript"
+                ? "bg-primary text-white hover:bg-blue-700"
+                : "bg-white text-primary border border-primary hover:bg-gray-50"
+            }`}
+          >
             Enter Transcript
-            </button>
+          </button>
         </div>
 
         {/* Input Mode */}
         {inputMode === "audio" ? (
-            <AudioUpload setScript={setScript} setLoading={setLoading} />
+          <AudioUpload setScript={setScript} setLoading={setLoading} />
         ) : (
-            <TranscriptInput setScript={setScript} setLoading={setLoading} />
+          <TranscriptInput setScript={setScript} setLoading={setLoading} />
         )}
 
         {/* Loading Spinner */}
@@ -43,7 +50,7 @@ function App() {
 
         {/* Podcast Player */}
         {script && <PodcastPlayer script={script} />}
-        </div>
+      </div>
     </div>
   );
 }

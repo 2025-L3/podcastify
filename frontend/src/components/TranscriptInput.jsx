@@ -3,15 +3,21 @@ import { processTranscript } from "../utils/api";
 
 const TranscriptInput = ({ setScript, setLoading }) => {
   const [transcript, setTranscript] = useState("");
+  const [error, setError] = useState("");
 
   const handleGenerate = async () => {
-    if (!transcript) return;
+    if (!transcript) {
+      setError("Please enter a transcript.");
+      return;
+    }
     setLoading(true);
+    setError("");
 
     try {
       const response = await processTranscript(transcript);
       setScript(response.script);
     } catch (error) {
+      setError("Failed to generate podcast. Please try again.");
       console.error("Error processing transcript:", error);
     } finally {
       setLoading(false);
@@ -19,15 +25,20 @@ const TranscriptInput = ({ setScript, setLoading }) => {
   };
 
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-semibold mb-4">Enter Transcript</h2>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-semibold text-primary mb-4">Enter Transcript</h2>
       <textarea
         placeholder="Paste or type your transcript here..."
         value={transcript}
         onChange={(e) => setTranscript(e.target.value)}
-        className="w-full p-2 border rounded mb-4"
+        className="w-full p-3 border border-gray-300 rounded-lg mb-4 resize-none"
+        rows={6}
       />
-      <button onClick={handleGenerate} className="px-4 py-2 bg-blue-500 text-white rounded">
+      {error && <p className="text-red-500 mb-4">{error}</p>}
+      <button
+        onClick={handleGenerate}
+        className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition-all"
+      >
         Generate Podcast
       </button>
     </div>
