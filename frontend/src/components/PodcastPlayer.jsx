@@ -17,7 +17,7 @@ const PodcastPlayer = ({ script }) => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
+    <div className="bg-white mt-4 p-6 rounded-lg shadow-md">
       <h2 className="text-2xl font-semibold text-primary mb-4">Podcast Player</h2>
       <div className="flex gap-4 mb-4">
         <button
