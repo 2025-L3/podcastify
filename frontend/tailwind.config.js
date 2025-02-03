@@ -11,6 +11,9 @@ module.exports = {
       fontFamily: {
         sans: ["Inter", "sans-serif"], // Use Inter font
       },
+      boxShadow: {
+        glass: "0 8px 32px 0 rgba(31, 38, 135, 0.15)",
+      },
     },
   },
   plugins: [],

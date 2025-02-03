@@ -1,55 +1,107 @@
 import React, { useState, useEffect, useRef } from "react";
+import { FaPlay, FaPause, FaStop } from "react-icons/fa";
+import WaveSurfer from "wavesurfer.js";
+import axios from "axios";
 
 const PodcastPlayer = ({ script }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const utteranceRef = useRef(null);
+  const waveformRef = useRef(null);
+  const wavesurferRef = useRef(null);
 
-  // Initialize the SpeechSynthesisUtterance
+  // ElevenLabs API Key and Voice ID
+  const ELEVEN_LABS_API_KEY = "sk_527b0749ee90a7242ae5b496c356947234e2c0ce50eb0272"; // Replace with your API key
+  const VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"; // Example voice ID (replace with your preferred voice)
+
+  // Generate audio using ElevenLabs TTS
+  const generateAudio = async (text) => {
+    try {
+      const response = await axios.post(
+        `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
+        {
+          text: text,
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5,
+          },
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "xi-api-key": ELEVEN_LABS_API_KEY,
+          },
+          responseType: "arraybuffer", // Get audio as a binary stream
+        }
+      );
+
+      // Convert the response to a Blob
+      const audioBlob = new Blob([response.data], { type: "audio/mpeg" });
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Load the audio into WaveSurfer
+      wavesurferRef.current.load(audioUrl);
+
+      // Set duration once the audio is loaded
+      wavesurferRef.current.on("ready", () => {
+        setDuration(wavesurferRef.current.getDuration());
+      });
+    } catch (error) {
+      console.error("Error generating audio with ElevenLabs:", error);
+    }
+  };
+
+  // Initialize WaveSurfer and generate audio
   useEffect(() => {
-    utteranceRef.current = new SpeechSynthesisUtterance(script);
-    utteranceRef.current.rate = playbackRate;
+    if (!script) return;
+
+    // Create a new WaveSurfer instance
+    wavesurferRef.current = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: "#4F46E5",
+      progressColor: "#7C3AED",
+      cursorColor: "#7C3AED",
+      height: 100,
+      responsive: true,
+      backend: "MediaElement", // Use MediaElement backend for better compatibility
+    });
+
+    // Generate audio from script using ElevenLabs
+    generateAudio(script);
 
     // Update current time as the audio plays
-    utteranceRef.current.onboundary = () => {
-      setCurrentTime((prevTime) => prevTime + 0.1);
-    };
+    wavesurferRef.current.on("audioprocess", () => {
+      setCurrentTime(wavesurferRef.current.getCurrentTime());
+    });
 
-    // Reset when audio ends
-    utteranceRef.current.onend = () => {
+    // Handle end of playback
+    wavesurferRef.current.on("finish", () => {
       setIsPlaying(false);
-      setCurrentTime(0);
-    };
+      setCurrentTime(duration); // Ensure progress bar reaches 100%
+    });
 
-    // Set initial duration
-    utteranceRef.current.onstart = () => {
-      setDuration(utteranceRef.current.text.length / 10); // Approximate duration
-    };
-
+    // Cleanup
     return () => {
-      window.speechSynthesis.cancel();
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+      }
     };
   }, [script]);
 
   // Handle play/pause
   const handlePlayPause = () => {
     if (isPlaying) {
-      window.speechSynthesis.pause();
+      wavesurferRef.current.pause();
     } else {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      } else {
-        window.speechSynthesis.speak(utteranceRef.current);
-      }
+      wavesurferRef.current.play();
     }
     setIsPlaying(!isPlaying);
   };
 
   // Handle stop
   const handleStop = () => {
-    window.speechSynthesis.cancel();
+    wavesurferRef.current.stop();
     setIsPlaying(false);
     setCurrentTime(0);
   };
@@ -58,7 +110,7 @@ const PodcastPlayer = ({ script }) => {
   const handleSpeedChange = (e) => {
     const newSpeed = parseFloat(e.target.value);
     setPlaybackRate(newSpeed);
-    utteranceRef.current.rate = newSpeed;
+    wavesurferRef.current.setPlaybackRate(newSpeed);
   };
 
   // Format time (mm:ss)
@@ -69,8 +121,11 @@ const PodcastPlayer = ({ script }) => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
+    <div className="bg-white/20 backdrop-blur-md p-6 rounded-lg shadow-glass border border-white/10">
       <h2 className="text-2xl font-semibold text-primary mb-4">Podcast Player</h2>
+
+      {/* Waveform Visualizer */}
+      <div ref={waveformRef} className="mb-6"></div>
 
       {/* Progress Bar */}
       <div className="mb-6">
@@ -94,15 +149,15 @@ const PodcastPlayer = ({ script }) => {
             onClick={handlePlayPause}
             className={`px-6 py-3 rounded-lg transition-all ${
               isPlaying ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"
-            } text-white`}
+            } text-white flex items-center justify-center hover:scale-105 transform transition-transform`}
           >
-            {isPlaying ? "Pause" : "Play"}
+            {isPlaying ? <FaPause className="w-6 h-6" /> : <FaPlay className="w-6 h-6" />}
           </button>
           <button
             onClick={handleStop}
-            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all"
+            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all flex items-center justify-center hover:scale-105 transform transition-transform"
           >
-            Stop
+            <FaStop className="w-6 h-6" />
           </button>
         </div>
 

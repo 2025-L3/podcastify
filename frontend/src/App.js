@@ -19,7 +19,7 @@ function App() {
       }, []);
 
     return (
-        <div>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-6">
             {isLoading && <SplashScreen />}
             {!isLoading && (
                 // Your main app content

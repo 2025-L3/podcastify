@@ -19,7 +19,7 @@ const generatePodcastScript = async (text) => {
   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
   // Add a prompt to generate a two-person dialogue
-  const prompt = `Convert the following text into a one or two-person according to the case dialogue format. Use "Speaker 1:" and "Speaker 2:" to identify each speaker.\n\n${text}`;
+  const prompt = `Convert the following text into a one or two-person dialogue format. Use "Speaker 1:" and "Speaker 2:" to identify each speaker. Ensure the dialogue is natural and engaging.\n\n${text}`;
 
   const result = await model.generateContent(prompt);
   const response = await result.response;
