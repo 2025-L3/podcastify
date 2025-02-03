@@ -18,10 +18,14 @@ const PodcastPlayer = ({ script }) => {
   // Generate audio using ElevenLabs TTS
   const generateAudio = async (text) => {
     try {
+      // Remove speaker identification (e.g., "Speaker 1:", "Speaker 2:")
+      const cleanedText = text.replace(/Speaker \d+:/g, "");
+
+      // Generate podcast audio using ElevenLabs
       const response = await axios.post(
         `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
         {
-          text: text,
+          text: cleanedText,
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.5,
@@ -125,7 +129,7 @@ const PodcastPlayer = ({ script }) => {
       <h2 className="text-2xl font-semibold text-primary mb-4">Podcast Player</h2>
 
       {/* Waveform Visualizer */}
-      <div ref={waveformRef} className="mb-6"></div>
+      <div ref={waveformRef} className="mb-6 h-24"></div>
 
       {/* Progress Bar */}
       <div className="mb-6">
