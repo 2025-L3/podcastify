@@ -17,7 +17,7 @@ const SplashScreen = () => {
             d="M12 6v6m0 0v6m0-6h6m-6 0H6"
           ></path>
         </svg>
-        <span className="ml-4">Loading...</span>
+        <span className="my-4 ">Loading...</span>
       </div>
     </div>
   );

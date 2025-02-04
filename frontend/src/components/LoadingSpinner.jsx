@@ -1,9 +1,24 @@
 const LoadingSpinner = () => (
   <div className="flex my-10 justify-center items-center">
     {/* <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary"></div> */}
-    <span class="relative flex size-8">
-        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75"></span>
-        <span class="relative inline-flex size-8 rounded-full bg-blue-600"></span>
+    <span className="relative flex size-8">
+      <div className="animate-pulse text-2xl font-bold text-blue-500">
+        <svg
+          className="mx-auto my-2 w-16 h-16 animate-spin"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+          ></path>
+        </svg>
+        <span className="my-4">Processing...</span>
+      </div>
+        
     </span>
   </div>
 );

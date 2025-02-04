@@ -1,111 +1,173 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FaPlay, FaPause, FaStop } from "react-icons/fa";
-import WaveSurfer from "wavesurfer.js";
-import axios from "axios";
 
 const PodcastPlayer = ({ script }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const waveformRef = useRef(null);
-  const wavesurferRef = useRef(null);
+  const [isAudioReady, setIsAudioReady] = useState(false); // Track if audio is ready
+  const audioRef = useRef(null);
 
-  // ElevenLabs API Key and Voice ID
-  const ELEVEN_LABS_API_KEY = "sk_527b0749ee90a7242ae5b496c356947234e2c0ce50eb0272"; // Replace with your API key
-  const VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"; // Example voice ID (replace with your preferred voice)
+  // Web Speech API Synthesis
+  const speakScript = (text) => {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = playbackRate;
+      utterance.onend = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+  };
 
-  // Generate audio using ElevenLabs TTS
+  // Generate audio using Web Speech API
   const generateAudio = async (text) => {
     try {
-      // Remove speaker identification (e.g., "Speaker 1:", "Speaker 2:")
-      const cleanedText = text.replace(/Speaker \d+:/g, "");
+      // Remove speaker identification (e.g., "commentator1:", "commentator2:")
+      const cleanedText = text.replace(/commentator\d+:/g, "");
 
-      // Generate podcast audio using ElevenLabs
-      const response = await axios.post(
-        `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
-        {
-          text: cleanedText,
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.5,
-          },
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "xi-api-key": ELEVEN_LABS_API_KEY,
-          },
-          responseType: "arraybuffer", // Get audio as a binary stream
-        }
+      // Generate podcast audio using Web Speech API
+      await speakScript(cleanedText);
+
+      // Load intro and outro music
+      const [introAudio, outroAudio] = await Promise.all([
+        fetch("/audio/intro.mp3").then((res) => res.arrayBuffer()),
+        fetch("/audio/intro.mp3").then((res) => res.arrayBuffer()),
+      ]);
+
+      // Decode audio files
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const introBuffer = await audioContext.decodeAudioData(introAudio);
+      const outroBuffer = await audioContext.decodeAudioData(outroAudio);
+
+      // Create a buffer for the mixed audio
+      const mixedBuffer = audioContext.createBuffer(
+        1, // Number of channels
+        introBuffer.length + outroBuffer.length + (cleanedText.length * 0.1 * audioContext.sampleRate), // Approximate duration
+        audioContext.sampleRate
       );
 
-      // Convert the response to a Blob
-      const audioBlob = new Blob([response.data], { type: "audio/mpeg" });
-      const audioUrl = URL.createObjectURL(audioBlob);
+      // Copy intro, podcast, and outro into the mixed buffer
+      const channelData = mixedBuffer.getChannelData(0);
+      let offset = 0;
 
-      // Load the audio into WaveSurfer
-      wavesurferRef.current.load(audioUrl);
+      // Add intro
+      channelData.set(introBuffer.getChannelData(0), offset);
+      offset += introBuffer.length;
+
+      // Add podcast (Web Speech API audio)
+      const podcastBuffer = await new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(cleanedText);
+        utterance.rate = playbackRate;
+        const recorder = new MediaRecorder(new MediaStream());
+        recorder.ondataavailable = (e) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            audioContext.decodeAudioData(reader.result).then(resolve);
+          };
+          reader.readAsArrayBuffer(e.data);
+        };
+        recorder.start();
+        window.speechSynthesis.speak(utterance);
+        utterance.onend = () => recorder.stop();
+      });
+      channelData.set(podcastBuffer.getChannelData(0), offset);
+      offset += podcastBuffer.length;
+
+      // Add outro
+      channelData.set(outroBuffer.getChannelData(0), offset);
+
+      // Export mixed audio as a Blob
+      const mixedBlob = await exportBufferToBlob(mixedBuffer);
+      const mixedUrl = URL.createObjectURL(mixedBlob);
+
+      // Load the mixed audio into an HTMLAudioElement
+      audioRef.current = new Audio(mixedUrl);
 
       // Set duration once the audio is loaded
-      wavesurferRef.current.on("ready", () => {
-        setDuration(wavesurferRef.current.getDuration());
-      });
+      audioRef.current.onloadedmetadata = () => {
+        setDuration(audioRef.current.duration);
+        setIsAudioReady(true); // Mark audio as ready
+      };
+
+      // Update current time as the audio plays
+      audioRef.current.ontimeupdate = () => {
+        setCurrentTime(audioRef.current.currentTime);
+      };
+
+      // Handle end of playback
+      audioRef.current.onended = () => {
+        setIsPlaying(false);
+        setCurrentTime(duration); // Ensure progress bar reaches 100%
+      };
     } catch (error) {
-      console.error("Error generating audio with ElevenLabs:", error);
+      console.error("Error generating audio:", error);
+      setIsAudioReady(false); // Mark audio as not ready if there's an error
     }
   };
 
-  // Initialize WaveSurfer and generate audio
+  // Export AudioBuffer to Blob
+  const exportBufferToBlob = async (buffer) => {
+    return new Promise((resolve) => {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const offlineContext = new OfflineAudioContext(
+        buffer.numberOfChannels,
+        buffer.length,
+        buffer.sampleRate
+      );
+
+      const source = offlineContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(offlineContext.destination);
+      source.start();
+
+      offlineContext.startRendering().then((renderedBuffer) => {
+        const blob = new Blob([renderedBuffer.getChannelData(0)], { type: "audio/wav" });
+        resolve(blob);
+      });
+    });
+  };
+
+  // Initialize audio
   useEffect(() => {
     if (!script) return;
 
-    // Create a new WaveSurfer instance
-    wavesurferRef.current = WaveSurfer.create({
-      container: waveformRef.current,
-      waveColor: "#4F46E5",
-      progressColor: "#7C3AED",
-      cursorColor: "#7C3AED",
-      height: 100,
-      responsive: true,
-      backend: "MediaElement", // Use MediaElement backend for better compatibility
-    });
-
-    // Generate audio from script using ElevenLabs
+    // Generate audio from script using Web Speech API
     generateAudio(script);
-
-    // Update current time as the audio plays
-    wavesurferRef.current.on("audioprocess", () => {
-      setCurrentTime(wavesurferRef.current.getCurrentTime());
-    });
-
-    // Handle end of playback
-    wavesurferRef.current.on("finish", () => {
-      setIsPlaying(false);
-      setCurrentTime(duration); // Ensure progress bar reaches 100%
-    });
 
     // Cleanup
     return () => {
-      if (wavesurferRef.current) {
-        wavesurferRef.current.destroy();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = ""; // Clear the audio source
       }
+      setIsAudioReady(false); // Reset audio ready state
     };
   }, [script]);
 
   // Handle play/pause
   const handlePlayPause = () => {
+    if (!audioRef.current || !isAudioReady) {
+      console.error("Audio is not ready yet.");
+      return;
+    }
+
     if (isPlaying) {
-      wavesurferRef.current.pause();
+      audioRef.current.pause();
     } else {
-      wavesurferRef.current.play();
+      audioRef.current.play();
     }
     setIsPlaying(!isPlaying);
   };
 
   // Handle stop
   const handleStop = () => {
-    wavesurferRef.current.stop();
+    if (!audioRef.current || !isAudioReady) {
+      console.error("Audio is not ready yet.");
+      return;
+    }
+
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
     setIsPlaying(false);
     setCurrentTime(0);
   };
@@ -114,7 +176,9 @@ const PodcastPlayer = ({ script }) => {
   const handleSpeedChange = (e) => {
     const newSpeed = parseFloat(e.target.value);
     setPlaybackRate(newSpeed);
-    wavesurferRef.current.setPlaybackRate(newSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = newSpeed;
+    }
   };
 
   // Format time (mm:ss)
@@ -127,9 +191,6 @@ const PodcastPlayer = ({ script }) => {
   return (
     <div className="bg-white/20 backdrop-blur-md p-6 rounded-lg shadow-glass border border-white/10">
       <h2 className="text-2xl font-semibold text-primary mb-4">Podcast Player</h2>
-
-      {/* Waveform Visualizer */}
-      <div ref={waveformRef} className="mb-6 h-24"></div>
 
       {/* Progress Bar */}
       <div className="mb-6">
@@ -151,15 +212,17 @@ const PodcastPlayer = ({ script }) => {
         <div className="flex justify-center gap-4">
           <button
             onClick={handlePlayPause}
+            disabled={!isAudioReady} // Disable button if audio is not ready
             className={`px-6 py-3 rounded-lg transition-all ${
               isPlaying ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"
-            } text-white flex items-center justify-center hover:scale-105 transform transition-transform`}
+            } text-white flex items-center justify-center hover:scale-105 transform transition-transform disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {isPlaying ? <FaPause className="w-6 h-6" /> : <FaPlay className="w-6 h-6" />}
           </button>
           <button
             onClick={handleStop}
-            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all flex items-center justify-center hover:scale-105 transform transition-transform"
+            disabled={!isAudioReady} // Disable button if audio is not ready
+            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all flex items-center justify-center hover:scale-105 transform transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <FaStop className="w-6 h-6" />
           </button>
@@ -177,6 +240,7 @@ const PodcastPlayer = ({ script }) => {
             value={playbackRate}
             onChange={handleSpeedChange}
             className="w-32"
+            disabled={!isAudioReady} // Disable slider if audio is not ready
           />
           <span className="text-gray-700">{playbackRate}x</span>
         </div>
