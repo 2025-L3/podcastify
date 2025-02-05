@@ -6,168 +6,214 @@ const PodcastPlayer = ({ script }) => {
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isAudioReady, setIsAudioReady] = useState(false); // Track if audio is ready
+  const [isAudioReady, setIsAudioReady] = useState(false);
+  const [utterances, setUtterances] = useState([]);
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
   const audioRef = useRef(null);
+  const introAudioRef = useRef(null);
+  const outroAudioRef = useRef(null);
 
-  // Web Speech API Synthesis
-  const speakScript = (text) => {
-    return new Promise((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = playbackRate;
-      utterance.onend = () => resolve();
-      window.speechSynthesis.speak(utterance);
-    });
-  };
-
-  // Generate audio using Web Speech API
-  const generateAudio = async (text) => {
-    try {
-      // Remove speaker identification (e.g., "commentator1:", "commentator2:")
-      const cleanedText = text.replace(/commentator\d+:/g, "");
-
-      // Generate podcast audio using Web Speech API
-      await speakScript(cleanedText);
-
-      // Load intro and outro music
-      const [introAudio, outroAudio] = await Promise.all([
-        fetch("/audio/intro.mp3").then((res) => res.arrayBuffer()),
-        fetch("/audio/intro.mp3").then((res) => res.arrayBuffer()),
-      ]);
-
-      // Decode audio files
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const introBuffer = await audioContext.decodeAudioData(introAudio);
-      const outroBuffer = await audioContext.decodeAudioData(outroAudio);
-
-      // Create a buffer for the mixed audio
-      const mixedBuffer = audioContext.createBuffer(
-        1, // Number of channels
-        introBuffer.length + outroBuffer.length + (cleanedText.length * 0.1 * audioContext.sampleRate), // Approximate duration
-        audioContext.sampleRate
-      );
-
-      // Copy intro, podcast, and outro into the mixed buffer
-      const channelData = mixedBuffer.getChannelData(0);
-      let offset = 0;
-
-      // Add intro
-      channelData.set(introBuffer.getChannelData(0), offset);
-      offset += introBuffer.length;
-
-      // Add podcast (Web Speech API audio)
-      const podcastBuffer = await new Promise((resolve) => {
-        const utterance = new SpeechSynthesisUtterance(cleanedText);
-        utterance.rate = playbackRate;
-        const recorder = new MediaRecorder(new MediaStream());
-        recorder.ondataavailable = (e) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            audioContext.decodeAudioData(reader.result).then(resolve);
-          };
-          reader.readAsArrayBuffer(e.data);
-        };
-        recorder.start();
-        window.speechSynthesis.speak(utterance);
-        utterance.onend = () => recorder.stop();
-      });
-      channelData.set(podcastBuffer.getChannelData(0), offset);
-      offset += podcastBuffer.length;
-
-      // Add outro
-      channelData.set(outroBuffer.getChannelData(0), offset);
-
-      // Export mixed audio as a Blob
-      const mixedBlob = await exportBufferToBlob(mixedBuffer);
-      const mixedUrl = URL.createObjectURL(mixedBlob);
-
-      // Load the mixed audio into an HTMLAudioElement
-      audioRef.current = new Audio(mixedUrl);
-
-      // Set duration once the audio is loaded
-      audioRef.current.onloadedmetadata = () => {
-        setDuration(audioRef.current.duration);
-        setIsAudioReady(true); // Mark audio as ready
-      };
-
-      // Update current time as the audio plays
-      audioRef.current.ontimeupdate = () => {
-        setCurrentTime(audioRef.current.currentTime);
-      };
-
-      // Handle end of playback
-      audioRef.current.onended = () => {
-        setIsPlaying(false);
-        setCurrentTime(duration); // Ensure progress bar reaches 100%
-      };
-    } catch (error) {
-      console.error("Error generating audio:", error);
-      setIsAudioReady(false); // Mark audio as not ready if there's an error
-    }
-  };
-
-  // Export AudioBuffer to Blob
-  const exportBufferToBlob = async (buffer) => {
-    return new Promise((resolve) => {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const offlineContext = new OfflineAudioContext(
-        buffer.numberOfChannels,
-        buffer.length,
-        buffer.sampleRate
-      );
-
-      const source = offlineContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(offlineContext.destination);
-      source.start();
-
-      offlineContext.startRendering().then((renderedBuffer) => {
-        const blob = new Blob([renderedBuffer.getChannelData(0)], { type: "audio/wav" });
-        resolve(blob);
-      });
-    });
-  };
-
-  // Initialize audio
+  // Initialize voices
   useEffect(() => {
-    if (!script) return;
-
-    // Generate audio from script using Web Speech API
-    generateAudio(script);
-
-    // Cleanup
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = ""; // Clear the audio source
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        setVoicesLoaded(true);
+        console.log('Voices loaded:', voices.map(v => ({
+          name: v.name,
+          lang: v.lang,
+          default: v.default
+        })));
       }
-      setIsAudioReady(false); // Reset audio ready state
     };
-  }, [script]);
 
-  // Handle play/pause
-  const handlePlayPause = () => {
-    if (!audioRef.current || !isAudioReady) {
-      console.error("Audio is not ready yet.");
+    // Try to load voices immediately
+    loadVoices();
+
+    // Also set up the event listener for voices changed
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    // Some browsers need a little push to load voices
+    setTimeout(loadVoices, 500);
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
+
+  // Generate utterances for Web Speech API
+  const generateUtterances = (text) => {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) {
+      console.log('No voices available yet, retrying in 500ms');
+      setTimeout(() => generateUtterances(text), 500);
       return;
     }
 
+    // Filter for Google voices
+    const googleVoices = voices.filter(v => 
+      v.name.includes('Google') && v.lang.startsWith('en')
+    );
+
+    // Select voices
+    const voice1 = googleVoices.find(v => v.name === 'Google US English') || googleVoices[0];
+    const voice2 = googleVoices.find(v => v.name === 'Google UK English Female') || googleVoices[1];
+
+    console.log('Processing script format...');
+    
+    // Process the script to ensure proper formatting
+    const processedLines = text.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => {
+        // Remove markdown formatting and normalize speaker labels
+        const cleanLine = line.replace(/\*\*/g, '').trim();
+        
+        if (cleanLine.startsWith('Speaker 1:')) {
+          return cleanLine.replace('Speaker 1:', 'Speaker1:');
+        } else if (cleanLine.startsWith('Speaker 2:')) {
+          return cleanLine.replace('Speaker 2:', 'Speaker2:');
+        } else {
+          console.log('Found line without valid speaker identifier:', line);
+          return `Speaker1: ${cleanLine}`;
+        }
+      });
+
+    console.log('Processed script lines:', processedLines);
+
+    const newUtterances = processedLines.map((line) => {
+      // Extract the actual text without the speaker identifier
+      const cleanText = line.replace(/Speaker[12]:\s*/, "").trim();
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      
+      // Determine which voice to use based on the speaker identifier
+      if (line.startsWith("Speaker1:")) {
+        utterance.voice = voice1;
+        utterance.pitch = 0.95;
+        utterance.rate = playbackRate * 0.98;
+        console.log('Using voice1:', voice1.name, 'for:', cleanText);
+      } else if (line.startsWith("Speaker2:")) {
+        utterance.voice = voice2;
+        utterance.pitch = 1.15;
+        utterance.rate = playbackRate * 1.02;
+        console.log('Using voice2:', voice2.name, 'for:', cleanText);
+      }
+
+      utterance.volume = 1.0;
+      
+      utterance.onend = () => {
+        if (line === processedLines[processedLines.length - 1]) {
+          playOutro();
+          setIsPlaying(false);
+        }
+      };
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        setIsPlaying(false);
+      };
+      return utterance;
+    });
+
+    console.log(`Created ${newUtterances.length} utterances with alternating voices`);
+    setUtterances(newUtterances);
+  };
+
+  // Play intro music
+  const playIntro = () => {
+    try {
+      if (!introAudioRef.current) {
+        // Update the audio path to be relative to the public folder
+        introAudioRef.current = new Audio("/assets/audio/intro.mp3");
+        
+        introAudioRef.current.onended = () => {
+          console.log('Intro ended, starting speech');
+          utterances.forEach((utterance) => window.speechSynthesis.speak(utterance));
+        };
+        
+        introAudioRef.current.onerror = (e) => {
+          console.error('Intro audio error:', {
+            error: e.error,
+            message: e.message,
+            src: introAudioRef.current.src
+          });
+          // Continue with speech even if intro fails
+          utterances.forEach((utterance) => window.speechSynthesis.speak(utterance));
+        };
+      }
+
+      // Reset the audio to the beginning if it was played before
+      introAudioRef.current.currentTime = 0;
+      
+      const playPromise = introAudioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('Intro audio started successfully');
+          })
+          .catch(error => {
+            console.error('Error playing intro:', error);
+            // Continue with speech even if intro fails
+            utterances.forEach((utterance) => window.speechSynthesis.speak(utterance));
+          });
+      }
+    } catch (error) {
+      console.error('Error in playIntro:', error);
+      // Continue with speech even if intro fails
+      utterances.forEach((utterance) => window.speechSynthesis.speak(utterance));
+    }
+  };
+
+  // Play outro music
+  const playOutro = () => {
+    try {
+      if (!outroAudioRef.current) {
+        // Update the audio path to be relative to the public folder
+        outroAudioRef.current = new Audio("/assets/audio/outro.mp3");
+        
+        outroAudioRef.current.onerror = (e) => {
+          console.error('Outro audio error:', {
+            error: e.error,
+            message: e.message,
+            src: outroAudioRef.current.src
+          });
+        };
+      }
+
+      // Reset the audio to the beginning if it was played before
+      outroAudioRef.current.currentTime = 0;
+      
+      const playPromise = outroAudioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('Outro audio started successfully');
+          })
+          .catch(error => {
+            console.error('Error playing outro:', error);
+          });
+      }
+    } catch (error) {
+      console.error('Error in playOutro:', error);
+    }
+  };
+
+  // Handle play/pause
+  const handlePlayPause = () => {
     if (isPlaying) {
-      audioRef.current.pause();
+      window.speechSynthesis.pause();
     } else {
-      audioRef.current.play();
+      if (!window.speechSynthesis.speaking) {
+        playIntro(); // Play intro first
+      } else {
+        window.speechSynthesis.resume();
+      }
     }
     setIsPlaying(!isPlaying);
   };
 
   // Handle stop
   const handleStop = () => {
-    if (!audioRef.current || !isAudioReady) {
-      console.error("Audio is not ready yet.");
-      return;
-    }
-
-    audioRef.current.pause();
-    audioRef.current.currentTime = 0;
+    window.speechSynthesis.cancel();
     setIsPlaying(false);
     setCurrentTime(0);
   };
@@ -176,35 +222,28 @@ const PodcastPlayer = ({ script }) => {
   const handleSpeedChange = (e) => {
     const newSpeed = parseFloat(e.target.value);
     setPlaybackRate(newSpeed);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = newSpeed;
-    }
+    utterances.forEach((utterance) => (utterance.rate = newSpeed));
   };
 
-  // Format time (mm:ss)
-  const formatTime = (time) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-  };
+  // Initialize audio when voices are loaded
+  useEffect(() => {
+    if (!script || !voicesLoaded) {
+      console.log('Waiting for voices to load...');
+      return;
+    }
+    console.log('Voices loaded, generating utterances');
+    generateUtterances(script);
+
+    return () => {
+      window.speechSynthesis.cancel();
+      if (introAudioRef.current) introAudioRef.current.pause();
+      if (outroAudioRef.current) outroAudioRef.current.pause();
+    };
+  }, [script, voicesLoaded, playbackRate]);
 
   return (
     <div className="bg-white/20 backdrop-blur-md p-6 rounded-lg shadow-glass border border-white/10">
       <h2 className="text-2xl font-semibold text-primary mb-4">Podcast Player</h2>
-
-      {/* Progress Bar */}
-      <div className="mb-6">
-        <div className="flex justify-between text-sm text-gray-600 mb-2">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
-            className="bg-primary h-2 rounded-full"
-            style={{ width: `${(currentTime / duration) * 100}%` }}
-          ></div>
-        </div>
-      </div>
 
       {/* Player Controls and Speed Bar */}
       <div className="flex flex-col gap-4">
@@ -212,17 +251,15 @@ const PodcastPlayer = ({ script }) => {
         <div className="flex justify-center gap-4">
           <button
             onClick={handlePlayPause}
-            disabled={!isAudioReady} // Disable button if audio is not ready
             className={`px-6 py-3 rounded-lg transition-all ${
               isPlaying ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"
-            } text-white flex items-center justify-center hover:scale-105 transform transition-transform disabled:opacity-50 disabled:cursor-not-allowed`}
+            } text-white flex items-center justify-center hover:scale-105 transform transition-transform`}
           >
             {isPlaying ? <FaPause className="w-6 h-6" /> : <FaPlay className="w-6 h-6" />}
           </button>
           <button
             onClick={handleStop}
-            disabled={!isAudioReady} // Disable button if audio is not ready
-            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all flex items-center justify-center hover:scale-105 transform transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all flex items-center justify-center hover:scale-105 transform transition-transform"
           >
             <FaStop className="w-6 h-6" />
           </button>
@@ -240,7 +277,6 @@ const PodcastPlayer = ({ script }) => {
             value={playbackRate}
             onChange={handleSpeedChange}
             className="w-32"
-            disabled={!isAudioReady} // Disable slider if audio is not ready
           />
           <span className="text-gray-700">{playbackRate}x</span>
         </div>
@@ -249,7 +285,9 @@ const PodcastPlayer = ({ script }) => {
       {/* Script Display */}
       <div className="mt-6 p-4 bg-gray-100 rounded-lg">
         <h3 className="font-semibold text-primary">Script:</h3>
-        <pre className="whitespace-pre-wrap text-text">{script}</pre>
+        <pre className="whitespace-pre-wrap text-text">
+          {script.replace(/Speaker \d+:/g, "")}
+        </pre>
       </div>
     </div>
   );
