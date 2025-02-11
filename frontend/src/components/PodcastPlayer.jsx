@@ -61,12 +61,40 @@ const PodcastPlayer = ({ script }) => {
 
     console.log('Processing script format...');
     
-    // Process the script to ensure proper formatting
+    // Extract topic from first few lines of conversation
+    const lines = text.split('\n').map(line => line.replace(/\*\*/g, '').trim());
+    const firstLine = lines[0] || '';
+    const topicMatch = firstLine.match(/about\s+(.+?)[?.!]/i) || // Try to match "about [topic]"
+                      firstLine.match(/discussing\s+(.+?)[?.!]/i) || // Try to match "discussing [topic]"
+                      firstLine.match(/Speaker \d+:\s*(.+?)[?.!]/i); // Fallback to first sentence
+    
+    const topic = topicMatch ? 
+      topicMatch[1].toLowerCase().trim() : 
+      'this important topic';
+
+    console.log('Detected topic:', topic);
+
+    // Create dynamic introduction and conclusion
+    const introduction = [
+      `Speaker1: Welcome to today's conversation where we'll be discussing ${topic}. 
+      I'm your host, and I'm joined by a guest who will share their experiences and insights. 
+      We hope you'll find our discussion helpful and informative.`
+    ];
+
+    const conclusion = [
+      `Speaker1: We've covered a lot of ground in our discussion about ${topic}. 
+      I hope you've found this conversation valuable and picked up some useful insights.`,
+      
+      `Speaker1: Thank you for joining us today. 
+      Remember to apply these ideas in your own journey, and feel free to revisit this discussion anytime. 
+      Until next time, take care and goodbye!`
+    ];
+
+    // Process the main script
     const processedLines = text.split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .map(line => {
-        // Remove markdown formatting and normalize speaker labels
         const cleanLine = line.replace(/\*\*/g, '').trim();
         
         if (cleanLine.startsWith('Speaker 1:')) {
@@ -79,30 +107,62 @@ const PodcastPlayer = ({ script }) => {
         }
       });
 
-    console.log('Processed script lines:', processedLines);
+    // Combine introduction, main content, and conclusion
+    const fullScript = [...introduction, ...processedLines, ...conclusion];
 
-    const newUtterances = processedLines.map((line) => {
-      // Extract the actual text without the speaker identifier
+    const newUtterances = fullScript.map((line) => {
       const cleanText = line.replace(/Speaker[12]:\s*/, "").trim();
       const utterance = new SpeechSynthesisUtterance(cleanText);
       
-      // Determine which voice to use based on the speaker identifier
+      // More distinctive voice characteristics
       if (line.startsWith("Speaker1:")) {
         utterance.voice = voice1;
-        utterance.pitch = 0.95;
-        utterance.rate = playbackRate * 0.98;
+        utterance.pitch = 0.85;  // Deeper voice
+        utterance.rate = playbackRate * 0.95;  // Slightly slower
+        utterance.volume = 1.0;
+        
+        // Add extra professionalism for intro/outro sections
+        if (introduction.includes(line) || conclusion.includes(line)) {
+          utterance.pitch = 0.9;  // Slightly more formal tone
+          utterance.rate = playbackRate * 0.9;  // Slower for clarity
+        }
+        
+        // Add pauses for more natural speech
+        if (cleanText.includes(',')) {
+          utterance.text = cleanText.replace(/,/g, ', ');
+        }
         console.log('Using voice1:', voice1.name, 'for:', cleanText);
       } else if (line.startsWith("Speaker2:")) {
         utterance.voice = voice2;
-        utterance.pitch = 1.15;
-        utterance.rate = playbackRate * 1.02;
+        utterance.pitch = 1.25;  // Higher pitch
+        utterance.rate = playbackRate * 1.05;  // Slightly faster
+        utterance.volume = 0.95;  // Slightly softer
+        
+        // Add pauses for more natural speech
+        if (cleanText.includes(',')) {
+          utterance.text = cleanText.replace(/,/g, ', ');
+        }
         console.log('Using voice2:', voice2.name, 'for:', cleanText);
       }
 
-      utterance.volume = 1.0;
-      
+      // Add expression based on punctuation
+      if (cleanText.includes('?')) {
+        utterance.pitch *= 1.1;  // Raise pitch for questions
+      }
+      if (cleanText.includes('!')) {
+        utterance.volume *= 1.15;  // Increase volume for exclamations
+      }
+      if (cleanText.endsWith('.')) {
+        utterance.pitch *= 0.95;  // Lower pitch at end of sentences
+      }
+
+      // Add slight pause between speakers
+      if (line.startsWith("Speaker2:")) {
+        utterance.text = ' ' + utterance.text;  // Add small pause before second speaker
+      }
+
       utterance.onend = () => {
-        if (line === processedLines[processedLines.length - 1]) {
+        if (line === fullScript[fullScript.length - 1]) {
           playOutro();
           setIsPlaying(false);
         }
@@ -114,7 +174,7 @@ const PodcastPlayer = ({ script }) => {
       return utterance;
     });
 
-    console.log(`Created ${newUtterances.length} utterances with alternating voices`);
+    console.log(`Created ${newUtterances.length} utterances with distinct voices`);
     setUtterances(newUtterances);
   };
 

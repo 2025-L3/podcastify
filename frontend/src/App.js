@@ -15,7 +15,7 @@ function App() {
         // Simulating loading process
         setTimeout(() => {
           setIsLoading(false);
-        }, 200000); // Delay for 2 seconds
+        }, 2000); // Delay for 2 seconds
       }, []);
 
     return (
