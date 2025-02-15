@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { FaPlay, FaPause, FaStop } from "react-icons/fa";
+import { debounce } from "lodash";
 
 const PodcastPlayer = ({ script }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -40,6 +41,12 @@ const PodcastPlayer = ({ script }) => {
       window.speechSynthesis.onvoiceschanged = null;
     };
   }, []);
+
+  // Add performance optimization
+  const debouncedGenerateUtterances = useCallback(
+    debounce((text) => generateUtterances(text), 500),
+    [playbackRate]
+  );
 
   // Generate utterances for Web Speech API
   const generateUtterances = (text) => {
@@ -276,6 +283,14 @@ const PodcastPlayer = ({ script }) => {
     window.speechSynthesis.cancel();
     setIsPlaying(false);
     setCurrentTime(0);
+    if (introAudioRef.current) {
+      introAudioRef.current.pause();
+      introAudioRef.current.currentTime = 0;
+    }
+    if (outroAudioRef.current) {
+      outroAudioRef.current.pause();
+      outroAudioRef.current.currentTime = 0;
+    }
   };
 
   // Handle speed change
@@ -285,21 +300,30 @@ const PodcastPlayer = ({ script }) => {
     utterances.forEach((utterance) => (utterance.rate = newSpeed));
   };
 
+  // Add error boundaries for audio and speech synthesis
+  const handleSpeechError = (error) => {
+    console.error('Speech synthesis error:', error);
+    setIsPlaying(false);
+    window.speechSynthesis.cancel();
+  };
+
+  const handleAudioError = (error) => {
+    console.error('Audio playback error:', error);
+    // Continue with speech even if audio fails
+    utterances.forEach((utterance) => window.speechSynthesis.speak(utterance));
+  };
+
   // Initialize audio when voices are loaded
   useEffect(() => {
-    if (!script || !voicesLoaded) {
-      console.log('Waiting for voices to load...');
-      return;
-    }
-    console.log('Voices loaded, generating utterances');
-    generateUtterances(script);
+    if (!script || !voicesLoaded) return;
+    debouncedGenerateUtterances(script);
 
     return () => {
       window.speechSynthesis.cancel();
       if (introAudioRef.current) introAudioRef.current.pause();
       if (outroAudioRef.current) outroAudioRef.current.pause();
     };
-  }, [script, voicesLoaded, playbackRate]);
+  }, [script, voicesLoaded, playbackRate, debouncedGenerateUtterances]);
 
   return (
     <div className="bg-white/20 backdrop-blur-md p-6 rounded-lg shadow-glass border border-white/10">
