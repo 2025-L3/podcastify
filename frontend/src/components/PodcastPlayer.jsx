@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { FaPlay, FaPause, FaStop } from "react-icons/fa";
-import { debounce } from "lodash";
 
 const PodcastPlayer = ({ script }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -13,6 +12,10 @@ const PodcastPlayer = ({ script }) => {
   const audioRef = useRef(null);
   const introAudioRef = useRef(null);
   const outroAudioRef = useRef(null);
+  const [progress, setProgress] = useState(0);
+  const [totalDuration, setTotalDuration] = useState(0);
+  const [currentUtterance, setCurrentUtterance] = useState(0);
+  const progressInterval = useRef(null);
 
   // Initialize voices
   useEffect(() => {
@@ -42,11 +45,47 @@ const PodcastPlayer = ({ script }) => {
     };
   }, []);
 
-  // Add performance optimization
-  const debouncedGenerateUtterances = useCallback(
-    debounce((text) => generateUtterances(text), 500),
-    [playbackRate]
-  );
+  // Calculate total duration and setup progress tracking
+  useEffect(() => {
+    if (utterances.length > 0) {
+      // Estimate total duration based on text length and rate
+      const totalDuration = utterances.reduce((acc, utterance) => {
+        // Rough estimate: average speaking rate is about 150 words per minute
+        const words = utterance.text.split(' ').length;
+        const duration = (words / 150) * 60 / playbackRate;
+        return acc + duration;
+      }, 0);
+      
+      setTotalDuration(totalDuration);
+    }
+  }, [utterances, playbackRate]);
+
+  // Update progress bar
+  const updateProgress = useCallback(() => {
+    if (isPlaying) {
+      setProgress(prev => {
+        const newProgress = prev + (100 / totalDuration / 10); // Update every 100ms
+        return Math.min(newProgress, 100);
+      });
+    }
+  }, [isPlaying, totalDuration]);
+
+  // Setup progress interval
+  useEffect(() => {
+    if (isPlaying) {
+      progressInterval.current = setInterval(updateProgress, 100);
+    } else {
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+      }
+    }
+
+    return () => {
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+      }
+    };
+  }, [isPlaying, updateProgress]);
 
   // Generate utterances for Web Speech API
   const generateUtterances = (text) => {
@@ -117,7 +156,7 @@ const PodcastPlayer = ({ script }) => {
     // Combine introduction, main content, and conclusion
     const fullScript = [...introduction, ...processedLines, ...conclusion];
 
-    const newUtterances = fullScript.map((line) => {
+    const newUtterances = fullScript.map((line, index) => {
       const cleanText = line.replace(/Speaker[12]:\s*/, "").trim();
       const utterance = new SpeechSynthesisUtterance(cleanText);
       
@@ -168,10 +207,15 @@ const PodcastPlayer = ({ script }) => {
         utterance.text = ' ' + utterance.text;  // Add small pause before second speaker
       }
 
+      utterance.onstart = () => {
+        setCurrentUtterance(index);
+      };
+
       utterance.onend = () => {
-        if (line === fullScript[fullScript.length - 1]) {
+        if (index === fullScript.length - 1) {
           playOutro();
           setIsPlaying(false);
+          setProgress(100);
         }
       };
       utterance.onerror = (event) => {
@@ -282,7 +326,8 @@ const PodcastPlayer = ({ script }) => {
   const handleStop = () => {
     window.speechSynthesis.cancel();
     setIsPlaying(false);
-    setCurrentTime(0);
+    setProgress(0);
+    setCurrentUtterance(0);
     if (introAudioRef.current) {
       introAudioRef.current.pause();
       introAudioRef.current.currentTime = 0;
@@ -315,15 +360,19 @@ const PodcastPlayer = ({ script }) => {
 
   // Initialize audio when voices are loaded
   useEffect(() => {
-    if (!script || !voicesLoaded) return;
-    debouncedGenerateUtterances(script);
+    if (!script || !voicesLoaded) {
+      console.log('Waiting for voices to load...');
+      return;
+    }
+    console.log('Voices loaded, generating utterances');
+    generateUtterances(script);
 
     return () => {
       window.speechSynthesis.cancel();
       if (introAudioRef.current) introAudioRef.current.pause();
       if (outroAudioRef.current) outroAudioRef.current.pause();
     };
-  }, [script, voicesLoaded, playbackRate, debouncedGenerateUtterances]);
+  }, [script, voicesLoaded, playbackRate]);
 
   return (
     <div className="bg-white/20 backdrop-blur-md p-6 rounded-lg shadow-glass border border-white/10">
@@ -348,6 +397,37 @@ const PodcastPlayer = ({ script }) => {
             <FaStop className="w-6 h-6" />
           </button>
         </div>
+
+        {/* Progress Bar */}
+        <div className="w-full">
+          <div className="relative pt-1">
+            <div className="flex mb-2 items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-primary bg-primary/10">
+                  Progress
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-semibold inline-block text-primary">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+            </div>
+            <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-primary/10">
+              <div
+                style={{ width: `${progress}%` }}
+                className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-primary transition-all duration-500"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Current Line Indicator */}
+        {isPlaying && utterances.length > 0 && (
+          <div className="text-sm text-gray-600 text-center italic">
+            Currently playing: Line {currentUtterance + 1} of {utterances.length}
+          </div>
+        )}
 
         {/* Speed Control */}
         <div className="flex items-center justify-center gap-4">
